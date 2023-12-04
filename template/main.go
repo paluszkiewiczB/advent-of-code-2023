@@ -12,36 +12,36 @@ func main() {
 }
 
 func partOne() string {
-	c := make(chan string)
-	go readInput(c, "sample-input.txt")
-	for s := range c {
-		println(s)
+	s, cF := readFile("sample-input.txt")
+	defer cF()
+
+	for s.Scan() {
+		must(s.Err())
+		line := s.Text()
+		println(line)
 	}
 
 	return "todo"
 }
 
 func partTwo() string {
-	c := make(chan string)
-	go readInput(c, "sample-input.txt")
-	for s := range c {
-		println(s)
+	s, cF := readFile("sample-input.txt")
+	defer cF()
+
+	for s.Scan() {
+		must(s.Err())
+		line := s.Text()
+		println(line)
 	}
 
 	return "todo"
 }
 
-func readInput(c chan string, fileName string) {
-	file, err := os.Open(fileName)
+func readFile(file string) (s *bufio.Scanner, cF func() error) {
+	f, err := os.Open(file)
 	must(err)
-	defer mustf(file.Close)
-
-	scanner := bufio.NewScanner(file)
-	scanner.Split(bufio.ScanLines)
-	for scanner.Scan() {
-		c <- scanner.Text()
-	}
-	close(c)
+	s = bufio.NewScanner(f)
+	return s, f.Close
 }
 
 func mustf(f func() error) {
