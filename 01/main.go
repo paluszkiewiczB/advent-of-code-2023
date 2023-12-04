@@ -3,8 +3,11 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
+	"math"
 	"os"
 	"strconv"
+	"strings"
 	"unicode"
 )
 
@@ -39,18 +42,67 @@ func parseLine(s string) int {
 		panic(fmt.Sprintf("not a number: %v", digits))
 	}
 
-	fmt.Printf("read number: %d from line: %s\n", n, s)
+	log.Printf("read number: %d from line: %s", n, s)
 	return n
 }
 
 func partTwo() string {
 	c := make(chan string)
-	go readInput(c, "sample-input.txt")
+	go readInput(c, "input.txt")
+	var sum int
 	for s := range c {
-		println(s)
+		num := parseLineTwo(s)
+		sum += num
 	}
 
-	return "todo"
+	return strconv.Itoa(sum)
+}
+
+var (
+	digits = map[string]int{
+		"1":     1,
+		"2":     2,
+		"3":     3,
+		"4":     4,
+		"5":     5,
+		"6":     6,
+		"7":     7,
+		"8":     8,
+		"9":     9,
+		"one":   1,
+		"two":   2,
+		"three": 3,
+		"four":  4,
+		"five":  5,
+		"six":   6,
+		"seven": 7,
+		"eight": 8,
+		"nine":  9,
+	}
+)
+
+func parseLineTwo(s string) int {
+	var (
+		fi, li = math.MaxInt, -1
+		f, l   int
+	)
+
+	for code, value := range digits {
+		index := strings.Index(s, code)
+		if index != -1 && index < fi {
+			fi = index
+			f = value
+		}
+
+		last := strings.LastIndex(s, code)
+		if last != -1 && last > li {
+			li = last
+			l = value
+		}
+	}
+
+	fmt.Printf("read number: %d from line: %s\n", 10*f+l, s)
+	return 10*f + l
 }
 
 func readInput(c chan string, fileName string) {
