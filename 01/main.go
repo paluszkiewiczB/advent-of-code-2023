@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
+	"unicode"
 )
 
 func main() {
@@ -13,12 +15,32 @@ func main() {
 
 func partOne() string {
 	c := make(chan string)
-	go readInput(c, "sample-input.txt")
+	go readInput(c, "input.txt")
+
+	var sum int
 	for s := range c {
-		println(s)
+		num := parseLine(s)
+		sum += num
 	}
 
-	return "todo"
+	return strconv.Itoa(sum)
+}
+
+func parseLine(s string) int {
+	digits := make([]rune, 0, 2)
+	for _, c := range s {
+		if unicode.IsDigit(c) {
+			digits = append(digits, c)
+		}
+	}
+
+	n, err := strconv.Atoi(string(digits[0]) + string(digits[len(digits)-1]))
+	if err != nil {
+		panic(fmt.Sprintf("not a number: %v", digits))
+	}
+
+	fmt.Printf("read number: %d from line: %s\n", n, s)
+	return n
 }
 
 func partTwo() string {
