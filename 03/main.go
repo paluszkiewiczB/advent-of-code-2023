@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	fmt.Printf("part one: %s\n", partOne())
-	//fmt.Printf("part two: %s\n", partTwo())
+	//fmt.Printf("part one: %s\n", partOne())
+	fmt.Printf("part two: %s\n", partTwo())
 }
 
 type window struct {
@@ -39,6 +39,15 @@ func (s *window) slide(v row) {
 type pos struct {
 	x1, x2 int
 }
+
+func (p pos) overlaps(other pos) bool {
+	return p.x1 >= other.x1 && p.x1 <= other.x2 ||
+		p.x2 >= other.x1 && p.x2 <= other.x2 ||
+		other.x1 >= p.x1 && other.x2 <= p.x2 ||
+		other.x2 >= p.x1 && other.x2 <= p.x2
+
+}
+
 type dot struct {
 	pos
 }
@@ -66,8 +75,9 @@ func (n number) String() string {
 }
 
 type puzzle struct {
-	w   *window
-	sum int
+	w     *window
+	sum   int
+	ratio int
 }
 
 func (p puzzle) String() string {
@@ -86,22 +96,168 @@ func newPuzzle() *puzzle {
 	}
 }
 
-func (p *puzzle) loadLine(line string) {
-	vals := parseLine(line)
-	p.w.slide(vals)
-}
-
-func (p *puzzle) digest() {
+func (p *puzzle) digest(r row) {
+	p.w.slide(r)
+	println(p.String())
 	for _, val := range p.w.val[1] {
-		if n, ok := val.(number); ok {
+		switch n := val.(type) {
+		case number:
 			if p.isAdjacent(n) {
 				p.sum += n.val
-			} else {
+			}
+		case symbol:
+			if n.val == '*' {
+				if ratio, ok := p.calcRatio(n); ok {
+					println("found a gear with ratio ", ratio)
+					p.ratio += ratio
+				} else {
+					println("not a gear")
+				}
 			}
 		}
 	}
 }
 
+func (p *puzzle) isAdjacent(n number) bool {
+	for _, up := range p.w.val[0] {
+		if s, ok := up.(symbol); ok {
+			if s.x1 >= n.x1-1 && s.x1 <= n.x2+1 {
+				return true
+			}
+		}
+	}
+
+	for _, mid := range p.w.val[1] {
+		if s, ok := mid.(symbol); ok {
+			if s.x1 == n.x1-1 || s.x1 == n.x2+1 {
+				return true
+			}
+		}
+	}
+
+	for _, down := range p.w.val[2] {
+		if s, ok := down.(symbol); ok {
+			if s.x1 >= n.x1-1 && s.x1 <= n.x2+1 {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (p puzzle) calcRatio(s symbol) (int, bool) {
+	sp := pos{x1: s.x1 - 1, x2: s.x1 + 1}
+	nums := make([]number, 0)
+	for _, up := range p.w.val[0] {
+		if n, ok := up.(number); ok {
+			if sp.overlaps(n.pos) {
+				nums = append(nums, n)
+			}
+		}
+	}
+
+	for _, mid := range p.w.val[1] {
+		if n, ok := mid.(number); ok {
+			if sp.overlaps(n.pos) {
+				nums = append(nums, n)
+			}
+		}
+	}
+
+	for _, down := range p.w.val[2] {
+		if n, ok := down.(number); ok {
+			if sp.overlaps(n.pos) {
+				nums = append(nums, n)
+			}
+		}
+	}
+
+	if len(nums) != 2 {
+		return 0, false
+	}
+
+	return nums[0].val * nums[1].val, true
+}
+
+func parseLine(line string) row {
+	var vals row
+	from, to := -1, -1
+	addNum := func() {
+		if from == -1 {
+			return
+		}
+		num, err := strconv.Atoi(line[from : to+1])
+		must(err)
+		vals = append(vals, number{pos: pos{x1: from, x2: to}, val: num})
+		from = -1
+		to = -1
+	}
+	for x, c := range line {
+		switch c {
+		case '.':
+			addNum()
+			vals = append(vals, dot{pos: pos{x1: x, x2: x}})
+		default:
+			if unicode.IsDigit(c) {
+				if from == -1 {
+					from = x
+					to = x
+				} else {
+					to = x
+				}
+			} else {
+				addNum()
+				vals = append(vals, symbol{pos: pos{x1: x}, val: c})
+			}
+		}
+	}
+
+	if from != -1 {
+		addNum()
+	}
+
+	return vals
+}
+
+func partOne() string {
+	s, cF := readFile("input.txt")
+	defer cF()
+
+	p := newPuzzle()
+	for s.Scan() {
+		must(s.Err())
+		parsed := parseLine(s.Text())
+		p.digest(parsed)
+	}
+	p.digest(nil)
+
+	return strconv.Itoa(p.sum)
+}
+
+func partTwo() string {
+	s, cF := readFile("input.txt")
+	defer cF()
+
+	p := newPuzzle()
+	for s.Scan() {
+		must(s.Err())
+		parsed := parseLine(s.Text())
+		p.digest(parsed)
+	}
+	p.digest(nil)
+
+	return strconv.Itoa(p.ratio)
+}
+
+func readFile(file string) (s *bufio.Scanner, cF func() error) {
+	f, err := os.Open(file)
+	must(err)
+	s = bufio.NewScanner(f)
+	return s, f.Close
+}
+
+// prints number and surrounding symbols for part one debugging
 func debugPrint(p puzzle, n number) {
 	show := func(a any, overlap bool) {
 		switch t := a.(type) {
@@ -163,112 +319,6 @@ func debugPrint(p puzzle, n number) {
 
 	println()
 
-}
-
-func (p *puzzle) isAdjacent(n number) bool {
-	for _, up := range p.w.val[0] {
-		if s, ok := up.(symbol); ok {
-			if s.x1 >= n.x1-1 && s.x1 <= n.x2+1 {
-				return true
-			}
-		}
-	}
-
-	for _, mid := range p.w.val[1] {
-		if s, ok := mid.(symbol); ok {
-			if s.x1 == n.x1-1 || s.x1 == n.x2+1 {
-				return true
-			}
-		}
-	}
-
-	for _, down := range p.w.val[2] {
-		if s, ok := down.(symbol); ok {
-			if s.x1 >= n.x1-1 && s.x1 <= n.x2+1 {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-func parseLine(line string) row {
-	var vals row
-	from, to := -1, -1
-	num := 0
-	addNum := func() {
-		if from == -1 {
-			return
-		}
-		vals = append(vals, number{pos: pos{x1: from, x2: to}, val: num})
-		from = -1
-		to = -1
-		num = 0
-	}
-	for x, c := range line {
-		switch c {
-		case '.':
-			addNum()
-			vals = append(vals, dot{pos: pos{x1: x}})
-		default:
-			if unicode.IsDigit(c) {
-				if from == -1 {
-					from = x
-					to = x
-					num = int(c - '0')
-				} else {
-					to = x
-					num = num*10 + int(c-'0')
-				}
-			} else {
-				addNum()
-				vals = append(vals, symbol{pos: pos{x1: x}, val: c})
-			}
-		}
-	}
-
-	if from != -1 {
-		addNum()
-	}
-
-	return vals
-}
-
-func partOne() string {
-	s, cF := readFile("input.txt")
-	defer cF()
-
-	p := newPuzzle()
-	for s.Scan() {
-		must(s.Err())
-		p.loadLine(s.Text())
-		p.digest()
-	}
-	p.loadLine("") // slide window
-	p.digest()
-
-	return strconv.Itoa(p.sum)
-}
-
-func partTwo() string {
-	s, cF := readFile("sample-input.txt")
-	defer cF()
-
-	for s.Scan() {
-		must(s.Err())
-		line := s.Text()
-		println(line)
-	}
-
-	return "todo"
-}
-
-func readFile(file string) (s *bufio.Scanner, cF func() error) {
-	f, err := os.Open(file)
-	must(err)
-	s = bufio.NewScanner(f)
-	return s, f.Close
 }
 
 func mustf(f func() error) {
